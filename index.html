@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goethe-Zertifikat B1: Leseverstehen</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo">B1<span>Lese</span>Trainer</div>
+        <nav>
+            <button id="btn-menu" class="btn secondary">Alle Tests</button>
+        </nav>
+    </header>
+
+    <main class="app-main">
+        <!-- Test Selection View -->
+        <section id="view-tests" class="view active">
+            <div class="hero">
+                <h1>Willkommen zum B1 Leseverstehen</h1>
+                <p>Üben Sie mit 10 interaktiven Modelltests für Ihr Goethe-Zertifikat.</p>
+            </div>
+            <div class="test-grid" id="test-grid">
+                <!-- Tests will be rendered here by JS -->
+            </div>
+        </section>
+
+        <!-- Active Test View -->
+        <section id="view-active-test" class="view hidden">
+            <div class="test-header">
+                <h2 id="current-test-title">Modellsatz</h2>
+                <div class="progress-bar">
+                    <div class="progress" id="test-progress"></div>
+                </div>
+                <div class="part-selector" id="part-selector">
+                    <!-- Part buttons rendered here -->
+                </div>
+            </div>
+
+            <div class="test-content" id="test-content">
+                <!-- Current part content rendered here -->
+            </div>
+
+            <div class="test-footer">
+                <button id="btn-prev" class="btn outline" disabled>Zurück</button>
+                <button id="btn-evaluate" class="btn primary hidden">Auswerten</button>
+                <button id="btn-next" class="btn primary">Weiter</button>
+            </div>
+        </section>
+
+        <!-- Results View -->
+        <section id="view-results" class="view hidden">
+            <div class="results-card">
+                <h2>Ihre Ergebnisse</h2>
+                <div class="score-display">
+                    <div class="score-circle">
+                        <span id="final-score">0</span><span>/ 30</span>
+                    </div>
+                </div>
+                <p id="result-message" class="result-message">Gut gemacht!</p>
+                <div id="results-details" class="results-details">
+                    <!-- Detailed feedback here -->
+                </div>
+                <div id="detailed-answers" class="detailed-answers" style="margin-top: 2rem;">
+                    <!-- Full Q&A list for review and print -->
+                </div>
+                <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button id="btn-print" class="btn secondary">Ergebnisse drucken (PDF)</button>
+                    <button id="btn-restart" class="btn primary">Zurück zur Übersicht</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="tests_data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
