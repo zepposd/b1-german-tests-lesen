@@ -207,7 +207,7 @@ function renderCurrentTask() {
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <button id="btn-evaluate" class="btn" style="background: var(--blue-dk); color: white; border: none; font-weight: bold;"><span style="margin-right:5px;">🤖</span> KI-Bewertung (Empfohlen)</button>
-                <button id="btn-show-model" class="btn outline" style="border-color: var(--success); color: var(--success); font-weight: bold;"><span style="margin-right:5px;">💡</span> Detaillierte Musterlösung anzeigen</button>
+                <button id="btn-show-model" class="btn outline" style="border-color: var(--success); color: var(--success); font-weight: bold;"><span style="margin-right:5px;">💡</span> Detaillierte Musterlösung anzeigen</button> <button id="btn-print-simple" onclick="printExercise(false)" class="btn outline" style="border-color: var(--gray); color: var(--gray); font-weight: bold; padding-left:15px; padding-right:15px;"><span style="margin-right:5px;">🖨️</span> Drucken / PDF</button>
             </div>
             <button id="btn-clear" class="btn" style="background: transparent; color: var(--gray); border: none; font-size: 0.85rem; text-decoration: underline;">Text neu schreiben</button>
         </div>
@@ -546,7 +546,8 @@ function renderFeedback(fb) {
     <div style="background: white; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; animation: fadeUp 0.4s ease;">
         <div style="background: linear-gradient(135deg, var(--blue-dk), var(--blue-md)); padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <h3 style="margin: 0; font-family: Georgia, serif; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;"><span>📝</span> KI-Bewertung (B1)</h3>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button onclick="printExercise(true)" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;">🖨️ PDF / Drucken</button>
                 ${!fb.translated_el ? `<button id="btn-trans-el" onclick="translateFeedback('el')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;">🇬🇷 Übersetzung EL</button>` : ''}
                 ${!fb.translated_en ? `<button id="btn-trans-en" onclick="translateFeedback('en')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;">🇬🇧 Übersetzung EN</button>` : ''}
             </div>
@@ -678,6 +679,157 @@ window.translateFeedback = async function(lang) {
         if(btn) { btn.textContent = lang === 'el' ? "🇬🇷 Übersetzung EL" : "🇬🇧 Übersetzung EN"; btn.disabled = false; btn.style.opacity = "1"; }
     }
 }
+
+
+window.printExercise = function(withKI) {
+    const set = ALL_SETS.find(s => s.id === currentSetId);
+    if (!set) return;
+    const cfg = TASK_CONFIGS[currentTaskIdx];
+    const data = currentTaskIdx === 0 ? set.aufgabe1 : currentTaskIdx === 1 ? set.aufgabe2 : set.aufgabe3;
+    const studentText = document.getElementById('task-textarea')?.value || "Kein Text eingegeben.";
+    
+    let sitHtml = '';
+    if (data.situation) sitHtml += `<div><strong>Situation:</strong> ${data.situation}</div><br>`;
+    if (data.meinung) sitHtml += `<div><em>"${data.meinung}"</em></div><br>`;
+    if (data.punkte) sitHtml += `<ul>${data.punkte.map(p => `<li>${p}</li>`).join('')}</ul>`;
+    if (data.aufgabe) sitHtml += `<div>${data.aufgabe}</div><br>`;
+
+    let evaluationHtml = '';
+    if (withKI) {
+        const fbContainer = document.getElementById('feedback-container');
+        if (fbContainer && fbContainer.innerHTML.trim() !== '') {
+            evaluationHtml = fbContainer.innerHTML;
+            // Clean up UI buttons from print output
+            evaluationHtml = evaluationHtml.replace(/<button.*?<\/button>/g, '');
+        } else {
+            evaluationHtml = '<p>KI-Bewertung wurde noch nicht durchgeführt.</p>';
+        }
+    } else {
+        let checksHtml = '<h3>✓ Selbstkontrolle</h3><ul style="list-style:none; padding:0;">';
+        cfg.checks.forEach((c, i) => {
+            const isChecked = checklists[currentTaskIdx] && checklists[currentTaskIdx][i];
+            checksHtml += `<li>[${isChecked ? 'X' : ' '}] ${c}</li>`;
+        });
+        checksHtml += '</ul>';
+        evaluationHtml = checksHtml;
+    }
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`
+        <html>
+        <head>
+            <title>Goethe B1 Schreiben - ${set.thema} (Aufgabe ${currentTaskIdx + 1})</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #333; line-height: 1.5; }
+                h1, h2, h3 { color: #1e3a8a; }
+                .box { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; background: #fafafa; }
+                .text-box { white-space: pre-wrap; background: #fff; border: 1px solid #ccc; padding: 20px; font-family: monospace; font-size: 14px; }
+                @media print { body { padding: 0; } }
+            </style>
+        </head>
+        <body>
+            <h1>Goethe-Zertifikat B1: Schriftlicher Ausdruck</h1>
+            <h2>Satz ${set.id}: ${set.thema} — Aufgabe ${currentTaskIdx + 1} (${cfg.title})</h2>
+            
+            <div class="box">
+                ${sitHtml}
+            </div>
+
+            <h3>Text des Schülers:</h3>
+            <div class="text-box">${studentText}</div>
+
+            <div style="margin-top: 30px;">
+                ${evaluationHtml}
+            </div>
+            
+            <script>
+                setTimeout(() => { window.print(); window.close(); }, 500);
+            </script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+};
+
+
+function handleExitTarget(url) {
+    const key = localStorage.getItem("gemini_api_key");
+    if (!key) {
+        window.location.href = url;
+        return;
+    }
+
+    // Step 1 Modal
+    const modalHtml = `
+        <div id="exit-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+            <div style="background: white; border-radius: 12px; width: 100%; max-width: 500px; padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: fadeUp 0.3s ease;">
+                <h3 style="margin-top: 0; color: var(--blue-dk); font-size: 1.3rem;">🚪 Kurs beenden / Exit / Έξοδος</h3>
+                
+                <div id="exit-step-1">
+                    <p style="margin-bottom: 8px;">🇩🇪 Möchten Sie Ihren API-Schlüssel aus dem Browser löschen, bevor Sie gehen?</p>
+                    <p style="margin-bottom: 8px;">🇬🇧 Do you want to delete your API key from the browser before leaving?</p>
+                    <p style="margin-bottom: 20px;">🇬🇷 Θέλετε να διαγράψετε το κλειδί API από τον περιηγητή πριν αποχωρήσετε;</p>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+                        <button id="btn-exit-keep" class="btn outline" style="border-color: var(--blue-dk); color: var(--blue-dk);">💾 Behalten / Keep</button>
+                        <button id="btn-exit-del" class="btn primary" style="background: var(--red); border-color: var(--red);">🗑️ Löschen / Delete</button>
+                    </div>
+                </div>
+
+                <div id="exit-step-2" class="hidden">
+                    <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                        <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">⚠️ Sind Sie sicher? / Are you sure? / Σίγουρα;</h4>
+                        <ul style="font-size: 0.85rem; padding-left: 20px; color: #856404; margin-bottom: 0;">
+                            <li style="margin-bottom:5px;">🇩🇪 Wenn das ein öffentlicher PC ist, kann jemand Ihren Schlüssel nutzen.</li>
+                            <li style="margin-bottom:5px;">🇬🇧 If this is a shared PC, someone else might use your key.</li>
+                            <li>🇬🇷 Αν ο υπολογιστής είναι κοινόχρηστος, κάποιος μπορεί να χρεώσει το κλειδί σας.</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+                        <button id="btn-exit-safe" class="btn outline" style="border-color: var(--gray); color: var(--gray);">✅ Sicher, behalten / Keep safely</button>
+                        <button id="btn-exit-del-final" class="btn primary" style="background: var(--red); border-color: var(--red);">🗑️ Doch löschen / Actually Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    document.body.appendChild(div);
+
+    document.getElementById('btn-exit-del').onclick = () => {
+        localStorage.removeItem("gemini_api_key");
+        window.location.href = url;
+    };
+
+    document.getElementById('btn-exit-keep').onclick = () => {
+        document.getElementById('exit-step-1').style.display = 'none';
+        document.getElementById('exit-step-2').classList.remove('hidden');
+    };
+
+    document.getElementById('btn-exit-del-final').onclick = () => {
+        localStorage.removeItem("gemini_api_key");
+        window.location.href = url;
+    };
+
+    document.getElementById('btn-exit-safe').onclick = () => {
+        window.location.href = url;
+    };
+}
+
+// Override the dashboard button to use our exit logic
+document.addEventListener('DOMContentLoaded', () => {
+    const dashBtn = document.getElementById('btn-dashboard');
+    if (dashBtn) {
+        dashBtn.removeAttribute('onclick');
+        dashBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleExitTarget('index.html');
+        });
+    }
+});
 
 // Init on load
 document.addEventListener('DOMContentLoaded', init);
