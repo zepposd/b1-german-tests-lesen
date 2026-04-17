@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goethe-Zertifikat B1: Schriftlicher Ausdruck</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo">B1<span>Schreiben</span>Trainer</div>
+        <nav style="display: flex; gap: 1rem;">
+            <button id="btn-dashboard" class="btn outline" onclick="window.location.href='index.html'">Zurück zum Dashboard</button>
+            <button id="btn-menu" class="btn secondary">Alle Sätze</button>
+        </nav>
+    </header>
+
+    <main class="app-main">
+        <!-- Set Selection View -->
+        <section id="view-sets" class="view active">
+            <div class="hero">
+                <h1>Willkommen zum B1 Schriftlicher Ausdruck</h1>
+                <p>Üben Sie mit 10 interaktiven Übungssätzeninklusive Hilfestellungen (Redemittel) und sofortiger KI-Bewertung nach Goethe-Institut-Kriterien.</p>
+            </div>
+            <div class="test-grid" id="set-grid">
+                <!-- Sets will be rendered here -->
+            </div>
+        </section>
+
+        <!-- Active Task View -->
+        <section id="view-active-task" class="view hidden">
+            <div class="test-header">
+                <div>
+                    <h2 id="current-set-title" style="margin-bottom: 0.3rem;">Satz</h2>
+                    <p style="font-size: 0.9rem; color: var(--gray);">Goethe-Zertifikat B1 · Schriftlicher Ausdruck</p>
+                </div>
+                <!-- Task Progress / Navigation -->
+                <div class="part-selector" id="task-selector">
+                    <!-- Task buttons 1, 2, 3 rendered here -->
+                </div>
+            </div>
+
+            <div class="test-content" id="task-content">
+                <!-- Current task content rendered here -->
+            </div>
+
+            <!-- Navigation Footer -->
+            <div class="test-footer" id="task-footer">
+                <button id="btn-prev" class="btn outline" disabled>Zurück</button>
+                <div id="footer-status" style="font-size: 0.9rem; color: var(--gray); font-weight: 600;">Aufgabe 1 von 3</div>
+                <button id="btn-next" class="btn primary">Weiter</button>
+            </div>
+        </section>
+
+        <!-- Summary View -->
+        <section id="view-summary" class="view hidden">
+            <div class="results-card">
+                <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;" id="summary-icon">📋</div>
+                <h2 style="text-align: center; margin-bottom: 0.5rem;" id="summary-title">Zusammenfassung</h2>
+                <p style="text-align: center; margin-bottom: 2rem; color: var(--gray);" id="summary-subtitle">Satz 1: Thema</p>
+                
+                <div id="summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <!-- Summary cards rendered here -->
+                </div>
+
+                <div style="display: flex; gap: 1rem; justify-content: center;">
+                    <button id="btn-restart" class="btn outline">← Alle Übungssätze</button>
+                    <button id="btn-new-attempt" class="btn primary" style="background: var(--blue-dk);">↺ Neuer Versuch (Texte löschen)</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="schreiben_data.js"></script>
+    <script src="schreiben_app.js"></script>
+</body>
+</html>

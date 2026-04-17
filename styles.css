@@ -607,3 +607,28 @@ input[type="radio"] {
     background: #e2e8f0;
     color: var(--gray);
 }
+
+/* ======== SCHREIBEN VARIABLES ======== */
+:root {
+    --orange: #E8701A;
+    --orange-lt: #F5D5B8;
+    --blue-dk: #1F3864;
+    --blue-md: #2E5797;
+    --blue-lt: #d5e6f5;
+    --cream: #FAF7F2;
+    --warn: #ca8a04;
+    --red: #dc2626;
+    --gray: #6b7280;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hidden {
+    display: none !important;
+}
