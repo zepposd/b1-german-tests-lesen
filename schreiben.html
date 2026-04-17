@@ -55,6 +55,7 @@
 
         <!-- Summary View -->
         <section id="view-summary" class="view hidden">
+            <!-- (existing contents) -->
             <div class="results-card">
                 <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;" id="summary-icon">📋</div>
                 <h2 style="text-align: center; margin-bottom: 0.5rem;" id="summary-title">Zusammenfassung</h2>
@@ -71,6 +72,27 @@
             </div>
         </section>
     </main>
+
+    <!-- API Key Modal -->
+    <div id="api-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div style="background: white; border-radius: 12px; width: 100%; max-width: 500px; padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: fadeUp 0.3s ease;">
+            <h3 style="margin-top: 0; color: var(--blue-dk); display: flex; align-items: center; gap: 10px;"><span style="font-size: 1.5rem;">🔑</span> Google Gemini API Key</h3>
+            <p style="font-size: 0.95rem; color: var(--text-main); margin-bottom: 15px; line-height: 1.5;">
+                Damit die Künstliche Intelligenz Ihren Text nach Goethe-Kriterien korrigieren kann, wird ein kostenloser Zugangs-Schlüssel (API Key) benötigt.
+            </p>
+            <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 0.9rem; font-weight: bold; color: var(--success); margin-bottom: 8px;">Sie haben noch keinen?</p>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: var(--success); color: white; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 0.9rem; margin-bottom: 5px;">➔ Hier kostenlos erstellen (Google AI Studio)</a>
+                <p style="margin: 0; font-size: 0.8rem; color: var(--text-light); margin-top: 5px;">Loggen Sie sich ein, klicken Sie auf "Create API Key" und fügen Sie den generierten Code unten ein.</p>
+            </div>
+            <label style="display: block; font-weight: 600; font-size: 0.9rem; color: var(--gray); margin-bottom: 5px;">Ihr persönlicher API Key:</label>
+            <input type="password" id="api-key-input" placeholder="AIzaSy..." style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 1rem; margin-bottom: 20px; outline: none;">
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="btn-api-cancel" class="btn outline">Abbrechen</button>
+                <button id="btn-api-save" class="btn primary" style="background: var(--blue-dk);">Schlüssel Speichern & KI Starten</button>
+            </div>
+        </div>
+    </div>
 
     <script src="schreiben_data.js"></script>
     <script src="musterloesungen.js"></script>

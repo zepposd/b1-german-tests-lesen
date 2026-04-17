@@ -334,10 +334,36 @@ async function requestEvaluation(cfg, data) {
     }
     
     if (!geminiApiKey) {
-        const key = prompt("Google Gemini API Key zum Start der KI fehlt.\nWenn Sie ihn haben, fügen Sie ihn hier ein:");
-        if (!key) return;
-        geminiApiKey = key;
-        localStorage.setItem("gemini_api_key", key);
+        // Show custom modal instead of prompt
+        const modal = document.getElementById('api-modal');
+        const btnSave = document.getElementById('btn-api-save');
+        const btnCancel = document.getElementById('btn-api-cancel');
+        const inputKey = document.getElementById('api-key-input');
+        
+        modal.classList.remove('hidden');
+        inputKey.focus();
+
+        const closeAndCleanup = () => {
+            modal.classList.add('hidden');
+            btnSave.replaceWith(btnSave.cloneNode(true)); // remove all listeners
+            btnCancel.replaceWith(btnCancel.cloneNode(true));
+        };
+
+        document.getElementById('btn-api-cancel').addEventListener('click', closeAndCleanup);
+        
+        document.getElementById('btn-api-save').addEventListener('click', () => {
+            const key = inputKey.value.trim();
+            if (key) {
+                geminiApiKey = key;
+                localStorage.setItem("gemini_api_key", key);
+                closeAndCleanup();
+                // re-initiate evaluation
+                requestEvaluation(cfg, data);
+            } else {
+                alert("Bitte geben Sie einen gültigen Schlüssel ein.");
+            }
+        });
+        return; // execution will continue when user saves the model
     }
     
     errorMsg.style.display = "none";
@@ -356,29 +382,46 @@ async function requestEvaluation(cfg, data) {
     const promptTxt = `${ctx}\n\nABGEGEBENER TEXT (${wc} Wörter):\n"""\n${text}\n"""\n\nErstelle die Bewertung und antworte AUSSCHLIESSLICH im JSON-Format wie dieses Beispiel:\n{"grades":[{"criterion":"Erfüllung","grade":"B","comment":"..."},{"criterion":"Kohärenz","grade":"A","comment":"..."},{"criterion":"Wortschatz","grade":"C","comment":"..."},{"criterion":"Strukturen","grade":"A","comment":"..."}],"positives":["..."],"improvements":["..."],"tips":["..."],"overallComment":"..."}`;
     
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-            method: "POST", 
-            headers: { 
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ parts: [{ text: promptTxt }] }],
-                generationConfig: {
-                    temperature: 0.1,
-                    responseMimeType: "application/json"
-                }
-            })
-        });
+        let modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"];
+        let res, resData;
+        let lastError = "";
         
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.error?.message || `HTTP ${res.status}`);
+        for (let modelName of modelsToTry) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
+            res = await fetch(endpoint, {
+                method: "POST", 
+                headers: { 
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents: [{ parts: [{ text: promptTxt }] }],
+                    generationConfig: {
+                        temperature: 0.1,
+                        responseMimeType: "application/json"
+                    }
+                })
+            });
+            resData = await res.json();
+            
+            if (res.ok) {
+                break;
+            } else {
+                lastError = resData.error?.message || `HTTP ${res.status}`;
+                if (lastError.includes("is not found") || lastError.includes("not supported")) {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if (!res) throw new Error("Kein API Fetch ausgeführt.");
+        if (!res.ok) throw new Error(lastError);
         
         let raw = resData.candidates[0].content.parts[0].text;
         
         const fb = JSON.parse(raw);
-        // Fallback: Gemini sometimes drops the correctedVersion because we asked for "only this JSON format".
-        // If not sent, we inject the hardcoded Musterlösung.
         if (!fb.correctedVersion) {
             fb.correctedVersion = MUSTERLOESUNGEN[currentSetId] && MUSTERLOESUNGEN[currentSetId][currentTaskIdx] ? MUSTERLOESUNGEN[currentSetId][currentTaskIdx] : "";
         }
