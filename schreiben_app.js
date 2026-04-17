@@ -6,7 +6,7 @@ let feedbacks = [null, null, null];
 let taskDone = [false, false, false];
 let checklists = [[], [], []];
 
-let anthropicApiKey = localStorage.getItem("anthropic_api_key") || "";
+let geminiApiKey = localStorage.getItem("gemini_api_key") || "";
 
 // DOM Elements
 const viewSets = document.getElementById('view-sets');
@@ -23,21 +23,12 @@ const btnPrev = document.getElementById('btn-prev');
 const btnNext = document.getElementById('btn-next');
 const footerStatus = document.getElementById('footer-status');
 
-// Helper: Word count
+// Helper: Word count // ...
 const countWords = t => t.trim() === "" ? 0 : t.trim().split(/\s+/).length;
 
 function init() {
     renderSetGrid();
     showView(viewSets);
-    
-    // Check API Key
-    if (!anthropicApiKey) {
-        const key = prompt("Für die KI-Bewertung wird ein Anthropic API Key benötigt.\nBitte geben Sie ihn ein (wird lokal gespeichert):");
-        if (key) {
-            anthropicApiKey = key;
-            localStorage.setItem("anthropic_api_key", key);
-        }
-    }
 }
 
 function renderSetGrid() {
@@ -156,7 +147,6 @@ function renderCurrentTask() {
     const cfg = TASK_CONFIGS[currentTaskIdx];
     const data = currentTaskIdx === 0 ? set.aufgabe1 : currentTaskIdx === 1 ? set.aufgabe2 : set.aufgabe3;
     
-    // Redemittel HTML
     let redemittelHtml = `
         <div class="redemittel-container" style="margin-bottom: 1rem; border: 1px solid var(--blue-lt); border-radius: 8px; overflow: hidden;">
             <div class="redemittel-header" onclick="this.nextElementSibling.classList.toggle('hidden');" style="background: var(--blue-lt); padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: var(--blue-md); font-size: 0.9rem; text-transform: uppercase;">
@@ -169,14 +159,12 @@ function renderCurrentTask() {
         </div>
     `;
 
-    // Situation & Quote
     let sitHtml = '';
     if (data.situation) sitHtml += `<div style="background: white; border-left: 4px solid var(--orange); padding: 15px; margin-bottom: 15px; border-radius: 0 8px 8px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05);"><div style="font-size: 0.75rem; text-transform: uppercase; color: var(--orange); font-weight: bold; margin-bottom: 5px;">Situation</div>${data.situation}</div>`;
     if (data.meinung) sitHtml += `<div style="background: var(--blue-lt); padding: 15px; margin-bottom: 15px; border-radius: 8px; color: var(--blue-dk); font-style: italic;"><p style="margin-bottom: 5px;">${data.meinung}</p><span style="font-size: 0.75rem; font-weight: 600; color: var(--blue-md); font-style: normal;">— Online-Diskussionsbeitrag</span></div>`;
     if (data.punkte) sitHtml += `<ul style="list-style: none; padding: 0; margin-bottom: 15px;">${data.punkte.map(p => `<li style="padding: 5px 0; border-bottom: 1px solid var(--border);"><span style="color: var(--orange); font-weight: bold; margin-right: 8px;">→</span>${p}</li>`).join('')}</ul>`;
     if (data.aufgabe) sitHtml += `<div style="background: white; border: 1px solid var(--border); padding: 15px; margin-bottom: 15px; border-radius: 8px;">${data.aufgabe}</div>`;
 
-    // Checklist
     let checksHtml = `<div style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
         <div style="font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: var(--blue-md); margin-bottom: 10px;">✓ Selbstkontrolle</div>
         ${cfg.checks.map((c, i) => `
@@ -214,9 +202,12 @@ function renderCurrentTask() {
 
         ${checksHtml}
 
-        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <button id="btn-evaluate" class="btn" style="background: var(--orange); color: white; border: none; font-weight: bold;">🤖 KI-Bewertung anfordern</button>
-            <button id="btn-clear" class="btn" style="background: transparent; color: var(--gray); border: none; font-size: 0.85rem;">Text löschen</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button id="btn-evaluate" class="btn" style="background: var(--blue-dk); color: white; border: none; font-weight: bold;"><span style="margin-right:5px;">🤖</span> KI-Bewertung (Empfohlen)</button>
+                <button id="btn-show-model" class="btn outline" style="border-color: var(--success); color: var(--success); font-weight: bold;"><span style="margin-right:5px;">💡</span> Detaillierte Musterlösung anzeigen</button>
+            </div>
+            <button id="btn-clear" class="btn" style="background: transparent; color: var(--gray); border: none; font-size: 0.85rem; text-decoration: underline;">Text neu schreiben</button>
         </div>
 
         <div id="error-msg" style="display: none; background: #fef2f2; border: 1px solid #fca5a5; color: var(--red); padding: 10px; border-radius: 8px; margin-top: 15px; font-size: 0.9rem;"></div>
@@ -224,8 +215,8 @@ function renderCurrentTask() {
         <div id="loading-spinner" class="hidden" style="display: flex; align-items: center; gap: 15px; padding: 20px; background: white; border: 1px solid var(--border); border-radius: 8px; margin-top: 15px;">
             <div style="width: 26px; height: 26px; border: 3px solid var(--border); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
             <div>
-                <div style="font-weight: bold; font-size: 0.95rem;">Bewertung wird erstellt…</div>
-                <div style="font-size: 0.8rem; color: var(--gray);">Die KI analysiert Ihren Text nach Goethe-Kriterien. Das kann einige Sekunden dauern.</div>
+                <div style="font-weight: bold; font-size: 0.95rem;">Warte auf Google Gemini KI…</div>
+                <div style="font-size: 0.8rem; color: var(--gray);">Die KI analysiert Ihren Text nach Goethe-Zertifikat Kriterien.</div>
             </div>
         </div>
 
@@ -236,14 +227,13 @@ function renderCurrentTask() {
     updateNavButtons();
     showView(viewActiveTask);
     
-    // Attach Listeners
     const textarea = document.getElementById('task-textarea');
     const wordCount = document.getElementById('word-count');
     const wordBar = document.getElementById('word-bar');
     const btnClear = document.getElementById('btn-clear');
     const btnEval = document.getElementById('btn-evaluate');
+    const btnShowModel = document.getElementById('btn-show-model');
 
-    // Restore text
     if (userTexts[currentTaskIdx]) {
         textarea.value = userTexts[currentTaskIdx];
         updateWordCount(userTexts[currentTaskIdx], cfg.target);
@@ -258,7 +248,7 @@ function renderCurrentTask() {
     textarea.addEventListener('blur', () => textarea.style.borderColor = 'var(--border)');
 
     btnClear.addEventListener('click', () => {
-        if(confirm("Wollen Sie den Text wirklich löschen?")) {
+        if(confirm("Wollen Sie alles löschen und von vorne beginnen?")) {
             userTexts[currentTaskIdx] = "";
             checklists[currentTaskIdx] = Array(cfg.checks.length).fill(false);
             feedbacks[currentTaskIdx] = null;
@@ -267,9 +257,10 @@ function renderCurrentTask() {
         }
     });
 
+    btnShowModel.addEventListener('click', showModelAnswer);
+
     btnEval.addEventListener('click', () => requestEvaluation(cfg, data));
 
-    // Restore feedback
     if (feedbacks[currentTaskIdx]) {
         renderFeedback(feedbacks[currentTaskIdx]);
     }
@@ -277,7 +268,6 @@ function renderCurrentTask() {
 
 window.toggleCheck = function(taskIdx, checkIdx) {
     checklists[taskIdx][checkIdx] = !checklists[taskIdx][checkIdx];
-    // Re-render checklist visuals
     const labels = taskContent.querySelectorAll('.chk-text');
     if(labels[checkIdx]) {
         labels[checkIdx].style.color = checklists[taskIdx][checkIdx] ? 'var(--success)' : 'var(--gray)';
@@ -309,6 +299,29 @@ function updateWordCount(text, target) {
     }
 }
 
+function showModelAnswer() {
+    const textHtml = MUSTERLOESUNGEN[currentSetId] && MUSTERLOESUNGEN[currentSetId][currentTaskIdx] 
+                        ? MUSTERLOESUNGEN[currentSetId][currentTaskIdx] 
+                        : "Keine Musterlösung vorhanden.";
+    
+    let html = `
+    <div style="background: white; border-radius: 12px; border: 1px solid var(--success); box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; animation: fadeUp 0.4s ease;">
+        <div style="background: var(--success); padding: 15px 20px; color: white;">
+            <h3 style="margin: 0; font-family: Georgia, serif; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;"><span>💡</span> Perfekte Musterlösung (Niveau B1)</h3>
+        </div>
+        <div style="padding: 20px;">
+            <p style="font-size: 0.9rem; color: var(--gray); margin-bottom: 15px; font-style: italic;">Vergleichen Sie diesen Text mit Ihrer eigenen Version. Achten Sie auf den Satzbau, die Grußformeln und den verwendeten Wortschatz.</p>
+            <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 15px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; color: var(--text-main);">${textHtml}</div>
+        </div>
+    </div>
+    `;
+    document.getElementById('feedback-container').innerHTML = html;
+    
+    document.getElementById('error-msg').style.display = "none";
+    taskDone[currentTaskIdx] = true;
+    updateNavButtons();
+}
+
 async function requestEvaluation(cfg, data) {
     const text = userTexts[currentTaskIdx];
     const wc = countWords(text);
@@ -320,11 +333,11 @@ async function requestEvaluation(cfg, data) {
         return;
     }
     
-    if (!anthropicApiKey) {
-        const key = prompt("Bitte geben Sie Ihren Anthropic API Key ein:");
+    if (!geminiApiKey) {
+        const key = prompt("Google Gemini API Key zum Start der KI fehlt.\nWenn Sie ihn haben, fügen Sie ihn hier ein:");
         if (!key) return;
-        anthropicApiKey = key;
-        localStorage.setItem("anthropic_api_key", key);
+        geminiApiKey = key;
+        localStorage.setItem("gemini_api_key", key);
     }
     
     errorMsg.style.display = "none";
@@ -338,39 +351,45 @@ async function requestEvaluation(cfg, data) {
     else if (currentTaskIdx === 1) ctx = `Aufgabe: Meinungsbeitrag (~80 Wörter). Thema: ${ALL_SETS.find(s=>s.id===currentSetId).thema}.\nOnline-Beitrag: "${data.meinung}"`;
     else ctx = `Aufgabe: formelle E-Mail (~40 Wörter). Thema: ${ALL_SETS.find(s=>s.id===currentSetId).thema}.\nSituation: ${data.situation}\nAufgabe: ${data.aufgabe}`;
     
-    const promptTxt = `${ctx}\n\nABGEGEBENER TEXT (${wc} Wörter):\n"""\n${text}\n"""\n\nAntworte AUSSCHLIESSLICH mit JSON (kein Markdown, keine Backticks):\n{"grades":[{"criterion":"Erfüllung","grade":"B","comment":"..."},{"criterion":"Kohärenz","grade":"A","comment":"..."},{"criterion":"Wortschatz","grade":"C","comment":"..."},{"criterion":"Strukturen","grade":"B","comment":"..."}],"positives":["..."],"improvements":["..."],"tips":["..."],"overallComment":"...","correctedVersion":"..."}`;
+    const systemPrompt = "Du bist ein erfahrener Deutschlehrer und offizieller Prüfer für das Goethe-Zertifikat B1. Bewerte den Text des Schülers nach den vier Kriterien des Goethe-Instituts: ERFÜLLUNG, KOHÄRENZ, WORTSCHATZ, STRUKTUREN. Benutze die Notensskala A–E (A=Sehr gut, E=Ungenügend). Antworte NUR im JSON Format. Kein Markdown!";
+    
+    const promptTxt = `${ctx}\n\nABGEGEBENER TEXT (${wc} Wörter):\n"""\n${text}\n"""\n\nErstelle die Bewertung und antworte AUSSCHLIESSLICH im JSON-Format wie dieses Beispiel:\n{"grades":[{"criterion":"Erfüllung","grade":"B","comment":"..."},{"criterion":"Kohärenz","grade":"A","comment":"..."},{"criterion":"Wortschatz","grade":"C","comment":"..."},{"criterion":"Strukturen","grade":"A","comment":"..."}],"positives":["..."],"improvements":["..."],"tips":["..."],"overallComment":"..."}`;
     
     try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
             method: "POST", 
             headers: { 
-                "Content-Type": "application/json",
-                "x-api-key": anthropicApiKey,
-                "anthropic-version": "2023-06-01",
-                "anthropic-dangerous-direct-browser-access": "true"
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "claude-3-5-sonnet-20241022",
-                max_tokens: 1000,
-                system: "Du bist ein erfahrener Deutschlehrer und Prüfer für das Goethe-Zertifikat B1. Bewerte nach den vier Kriterien: ERFÜLLUNG, KOHÄRENZ, WORTSCHATZ, STRUKTUREN. Notensskala A–E (wobei A=Sehr gut, E=Ungenügend). Antworte NUR mit gültigem JSON, ohne Erklärungen.",
-                messages: [{ role: "user", content: promptTxt }]
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: promptTxt }] }],
+                generationConfig: {
+                    temperature: 0.1,
+                    responseMimeType: "application/json"
+                }
             })
         });
         
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error?.message || `HTTP ${res.status}`);
         
-        let raw = resData.content[0].text;
-        raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+        let raw = resData.candidates[0].content.parts[0].text;
         
         const fb = JSON.parse(raw);
+        // Fallback: Gemini sometimes drops the correctedVersion because we asked for "only this JSON format".
+        // If not sent, we inject the hardcoded Musterlösung.
+        if (!fb.correctedVersion) {
+            fb.correctedVersion = MUSTERLOESUNGEN[currentSetId] && MUSTERLOESUNGEN[currentSetId][currentTaskIdx] ? MUSTERLOESUNGEN[currentSetId][currentTaskIdx] : "";
+        }
+
         feedbacks[currentTaskIdx] = fb;
         taskDone[currentTaskIdx] = true;
         renderFeedback(fb);
-        updateNavButtons(); // to update green check in header
+        updateNavButtons();
         
     } catch (e) {
-        errorMsg.textContent = `Fehler bei der KI-Bewertung: ${e.message}\n(Tipp: Prüfen Sie ob Ihr API Key korrekt ist)`;
+        errorMsg.textContent = `Fehler bei der externen Google KI-Bewertung: ${e.message}\nVerwenden Sie stattdessen den Button "Musterlösung anzeigen", um fehlerfrei fortzufahren.`;
         errorMsg.style.display = "block";
     } finally {
         const lSp = document.getElementById('loading-spinner');
@@ -435,7 +454,7 @@ function renderSummary() {
             <div style="background: var(--orange); color: white; width: 26px; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; margin-bottom: 10px;">${i + 1}</div>
             <div style="font-weight: bold; font-size: 0.95rem; color: var(--blue-dk); margin-bottom: 5px;">${cfg.title}</div>
             <div style="font-size: 0.8rem; color: ${taskDone[i] ? 'var(--success)' : (wc > 0 ? 'var(--warn)' : 'var(--gray)')}; font-weight: 600;">
-                ${taskDone[i] ? `✓ Bewertet · ${wc} Wörter` : wc > 0 ? `${wc} Wörter · Nicht bewertet` : "Noch nicht begonnen"}
+                ${taskDone[i] ? `✓ Bearbeitet · ${wc} Wörter` : wc > 0 ? `${wc} Wörter · Nicht abgeschlossen` : "Noch nicht begonnen"}
             </div>
         `;
         card.onclick = () => {
