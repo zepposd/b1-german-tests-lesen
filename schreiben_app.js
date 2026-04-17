@@ -593,8 +593,10 @@ window.translateFeedback = async function(lang) {
             break;
         }
 
-        if (!res || !res.ok) let dispErrTrans = lastError.includes("not found") ? "Die Übersetzungs-Server sind überlastet." : lastError;
-        throw new Error("Übersetzung fehlgeschlagen: " + dispErrTrans);
+        if (!res || !res.ok) {
+            let dispErrTrans = lastError.includes("not found") ? "Die Übersetzungs-Server sind überlastet." : lastError;
+            throw new Error("Übersetzung fehlgeschlagen: " + dispErrTrans);
+        }
 
         let raw = resData.candidates[0].content.parts[0].text;
         raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
