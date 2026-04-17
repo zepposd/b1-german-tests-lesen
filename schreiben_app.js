@@ -382,7 +382,7 @@ async function requestEvaluation(cfg, data) {
     const promptTxt = `${ctx}\n\nABGEGEBENER TEXT (${wc} Wörter):\n"""\n${text}\n"""\n\nErstelle die Bewertung und antworte AUSSCHLIESSLICH im JSON-Format wie dieses Beispiel:\n{"grades":[{"criterion":"Erfüllung","grade":"B","comment":"..."},{"criterion":"Kohärenz","grade":"A","comment":"..."},{"criterion":"Wortschatz","grade":"C","comment":"..."},{"criterion":"Strukturen","grade":"A","comment":"..."}],"positives":["..."],"improvements":["..."],"tips":["..."],"overallComment":"..."}`;
     
     try {
-        let modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"];
+        let modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b"];
         let res, resData;
         let lastError = "";
         
@@ -408,16 +408,26 @@ async function requestEvaluation(cfg, data) {
                 break;
             } else {
                 lastError = resData.error?.message || `HTTP ${res.status}`;
-                if (lastError.includes("is not found") || lastError.includes("not supported")) {
+                // Continue to the next model if: not found, not supported, high demand, or rate limit
+                const isOverloaded = lastError.toLowerCase().includes("high demand") || res.status === 503 || res.status === 429;
+                const isNotFound = lastError.toLowerCase().includes("not found") || lastError.toLowerCase().includes("not supported");
+                
+                if (isNotFound || isOverloaded) {
                     continue;
                 } else {
-                    break;
+                    break; // Invalid key or other permanent error
                 }
             }
         }
 
         if (!res) throw new Error("Kein API Fetch ausgeführt.");
-        if (!res.ok) throw new Error(lastError);
+        if (!res.ok) {
+            // Is it an auth error?
+            if (res.status === 400 || res.status === 403) {
+                throw new Error("API-Schlüssel ist anscheinend ungültig oder abgelaufen.");
+            }
+            throw new Error(lastError);
+        }
         
         let raw = resData.candidates[0].content.parts[0].text;
         
@@ -432,8 +442,26 @@ async function requestEvaluation(cfg, data) {
         updateNavButtons();
         
     } catch (e) {
-        errorMsg.textContent = `Fehler bei der externen Google KI-Bewertung: ${e.message}\nVerwenden Sie stattdessen den Button "Musterlösung anzeigen", um fehlerfrei fortzufahren.`;
+        errorMsg.innerHTML = `
+            <strong>Fehler bei der externen Google KI-Bewertung:</strong><br>
+            ${e.message}<br><br>
+            <span style="font-size: 0.85rem; color: var(--text-main);">Mögliche Lösungen:</span>
+            <ul style="margin-top: 5px; padding-left: 20px; font-size: 0.85rem; color: var(--text-main);">
+                <li>Verwenden Sie stattdessen den Button <strong>"Musterlösung anzeigen"</strong>, um fehlerfrei fortzufahren.</li>
+                <li>Versuchen Sie es in ein paar Minuten erneut (falls die Server überlastet sind).</li>
+                <li><a href="#" id="link-reset-key" style="color: var(--blue-dk); font-weight: bold; text-decoration: underline;">Klicken Sie hier, um Ihren API-Schlüssel zu ändern oder neu einzugeben.</a></li>
+            </ul>
+        `;
         errorMsg.style.display = "block";
+        
+        // Add event listener to the reset link
+        document.getElementById('link-reset-key').onclick = (ev) => {
+            ev.preventDefault();
+            localStorage.removeItem("gemini_api_key");
+            geminiApiKey = "";
+            errorMsg.style.display = "none";
+            requestEvaluation(cfg, data); // this will trigger the modal
+        };
     } finally {
         const lSp = document.getElementById('loading-spinner');
         if(lSp) lSp.classList.add('hidden');
@@ -451,8 +479,12 @@ function renderFeedback(fb) {
     
     let html = `
     <div style="background: white; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; animation: fadeUp 0.4s ease;">
-        <div style="background: linear-gradient(135deg, var(--blue-dk), var(--blue-md)); padding: 15px 20px; color: white;">
-            <h3 style="margin: 0; font-family: Georgia, serif; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;"><span>📝</span> KI-Bewertung (Goethe-Institut B1)</h3>
+        <div style="background: linear-gradient(135deg, var(--blue-dk), var(--blue-md)); padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin: 0; font-family: Georgia, serif; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;"><span>📝</span> KI-Bewertung (B1)</h3>
+            <div style="display: flex; gap: 8px;">
+                ${!fb.translated_el ? `<button id="btn-trans-el" onclick="translateFeedback('el')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;">🇬🇷 Übersetzung EL</button>` : ''}
+                ${!fb.translated_en ? `<button id="btn-trans-en" onclick="translateFeedback('en')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;">🇬🇧 Übersetzung EN</button>` : ''}
+            </div>
         </div>
         <div style="padding: 20px;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;">
@@ -465,11 +497,11 @@ function renderFeedback(fb) {
                 `).join('') || ''}
             </div>
             
-            ${fb.positives?.length ? `<div style="margin-bottom: 15px;"><h4 style="color: var(--success); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">✅ Stärken</h4>${fb.positives.map(p => `<div style="font-size: 0.9rem; margin-bottom: 4px;">• ${p}</div>`).join('')}</div>` : ''}
-            ${fb.improvements?.length ? `<div style="margin-bottom: 15px;"><h4 style="color: var(--orange); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">⚠️ Verbesserungsvorschläge</h4>${fb.improvements.map(p => `<div style="font-size: 0.9rem; margin-bottom: 4px;">• ${p}</div>`).join('')}</div>` : ''}
-            ${fb.tips?.length ? `<div style="margin-bottom: 15px;"><h4 style="color: var(--blue-md); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">💡 Sprachliche Hinweise</h4>${fb.tips.map(p => `<div style="font-size: 0.9rem; margin-bottom: 4px;">• ${p}</div>`).join('')}</div>` : ''}
+            ${fb.positives?.length ? `<div style="margin-bottom: 15px;"><h4 style="color: var(--success); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">✅ Stärken</h4>${fb.positives.map((p, i) => `<div style="font-size: 0.9rem; margin-bottom: 4px;">• ${p}</div>`).join('')}</div>` : ''}
+            ${fb.improvements?.length ? `<div style="margin-bottom: 15px;"><h4 style="color: var(--orange); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">⚠️ Verbesserungsvorschläge</h4>${fb.improvements.map((p, i) => `<div style="font-size: 0.9rem; margin-bottom: 4px;">• ${p}</div>`).join('')}</div>` : ''}
+            ${fb.tips?.length ? `<div style="margin-bottom: 15px;"><h4 style="color: var(--blue-md); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">💡 Sprachliche Hinweise</h4>${fb.tips.map((p, i) => `<div style="font-size: 0.9rem; margin-bottom: 4px;">• ${p}</div>`).join('')}</div>` : ''}
             
-            ${fb.overallComment ? `<div style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px;"><h4 style="color: var(--blue-dk); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">📋 Gesamtkommentar</h4><p style="font-size: 0.9rem; line-height: 1.5;">${fb.overallComment}</p></div>` : ''}
+            ${fb.overallComment ? `<div style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px;"><h4 style="color: var(--blue-dk); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">📋 Gesamtkommentar</h4><p style="font-size: 0.9rem; line-height: 1.5; margin-bottom: 5px;">${fb.overallComment}</p>${fb.translated_el?.overallComment ? `<p style="font-size: 0.85rem; color: var(--gray); margin-top: 5px;">↳ 🇬🇷 ${fb.translated_el.overallComment}</p>` : ''}${fb.translated_en?.overallComment ? `<p style="font-size: 0.85rem; color: var(--gray); margin-top: 5px;">↳ 🇬🇧 ${fb.translated_en.overallComment}</p>` : ''}</div>` : ''}
             
             ${fb.correctedVersion ? `<div style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px;"><h4 style="color: var(--success); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px;">✏️ Musterformulierung</h4><div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 15px; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">${fb.correctedVersion}</div></div>` : ''}
         </div>
@@ -514,6 +546,71 @@ function renderSummary() {
 
 document.getElementById('btn-restart').addEventListener('click', handleBack);
 document.getElementById('btn-new-attempt').addEventListener('click', handleRestart);
+
+
+window.translateFeedback = async function(lang) {
+    const btn = document.getElementById(`btn-trans-${lang}`);
+    if(btn) { btn.textContent = "Lädt..."; btn.disabled = true; btn.style.opacity = "0.6"; }
+    
+    const fb = feedbacks[currentTaskIdx];
+    if(!fb) return;
+
+    if (!geminiApiKey) {
+        alert("API Key fehlt.");
+        if(btn) { btn.textContent = lang === 'el' ? "🇬🇷 Übersetzung EL" : "🇬🇧 Übersetzung EN"; btn.disabled = false; btn.style.opacity = "1"; }
+        return;
+    }
+
+    const payload = {
+        positives: fb.positives || [],
+        improvements: fb.improvements || [],
+        tips: fb.tips || [],
+        overallComment: fb.overallComment || ""
+    };
+
+    const targetLang = lang === 'el' ? 'Griechisch (Greek)' : 'Englisch (English)';
+    const promptTxt = `Übersetze exakt die Werte des folgenden JSON-Objekts ins ${targetLang}. Lass die JSON-Struktur und die Keys (Schlüssel) komplett unverändert. Antworte NUR im JSON Format. Keine Erklärungen.\\n\\n` + JSON.stringify(payload);
+
+    try {
+        let modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b"];
+        let res, resData, lastError = "";
+
+        for (let modelName of modelsToTry) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
+            res = await fetch(endpoint, {
+                method: "POST", 
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptTxt }] }],
+                    generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
+                })
+            });
+            resData = await res.json();
+            if (res.ok) break;
+            
+            lastError = resData.error?.message || "";
+            if (lastError.toLowerCase().includes("not found") || lastError.toLowerCase().includes("high demand") || res.status === 503 || res.status === 429) continue;
+            break;
+        }
+
+        if (!res || !res.ok) let dispErrTrans = lastError.includes("not found") ? "Die Übersetzungs-Server sind überlastet." : lastError;
+        throw new Error("Übersetzung fehlgeschlagen: " + dispErrTrans);
+
+        let raw = resData.candidates[0].content.parts[0].text;
+        raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+        const translated = JSON.parse(raw);
+        
+        if(lang === 'el') fb.translated_el = translated;
+        else fb.translated_en = translated;
+        
+        feedbacks[currentTaskIdx] = fb;
+        renderFeedback(fb);
+
+    } catch(e) {
+        alert("Fehler bei der Übersetzung: " + e.message);
+        if(btn) { btn.textContent = lang === 'el' ? "🇬🇷 Übersetzung EL" : "🇬🇧 Übersetzung EN"; btn.disabled = false; btn.style.opacity = "1"; }
+    }
+}
 
 // Init on load
 document.addEventListener('DOMContentLoaded', init);
