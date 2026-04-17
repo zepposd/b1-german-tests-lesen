@@ -7,6 +7,8 @@ let taskDone = [false, false, false];
 let checklists = [[], [], []];
 
 let geminiApiKey = localStorage.getItem("gemini_api_key") || "";
+window.evalRetryCount = 0;
+window.evalRetryTimeout = null;
 
 // DOM Elements
 const viewSets = document.getElementById('view-sets');
@@ -322,7 +324,9 @@ function showModelAnswer() {
     updateNavButtons();
 }
 
-async function requestEvaluation(cfg, data) {
+async function requestEvaluation(cfg, data, isRetry = false) {
+    if (!isRetry) window.evalRetryCount = 0;
+    if (window.evalRetryTimeout) clearTimeout(window.evalRetryTimeout);
     const text = userTexts[currentTaskIdx];
     const wc = countWords(text);
     const errorMsg = document.getElementById('error-msg');
@@ -422,9 +426,15 @@ async function requestEvaluation(cfg, data) {
 
         if (!res) throw new Error("Kein API Fetch ausgeführt.");
         if (!res.ok) {
-            // Is it an auth error?
             if (res.status === 400 || res.status === 403) {
                 throw new Error("API-Schlüssel ist anscheinend ungültig oder abgelaufen.");
+            }
+            // Check if the final model failed due to overload or not found
+            const isOverloadedLast = lastError.toLowerCase().includes("high demand") || res.status === 503 || res.status === 429;
+            const isNotFoundLast = lastError.toLowerCase().includes("not found") || lastError.toLowerCase().includes("not supported");
+            
+            if (isOverloadedLast || isNotFoundLast) {
+               throw new Error("OVERLOADED_SIGNAL");
             }
             throw new Error(lastError);
         }
@@ -442,9 +452,63 @@ async function requestEvaluation(cfg, data) {
         updateNavButtons();
         
     } catch (e) {
+        if (e.message === "OVERLOADED_SIGNAL" && window.evalRetryCount < 2) {
+            window.evalRetryCount++;
+            let secondsLeft = 10;
+            
+            errorMsg.innerHTML = `
+                <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba;">
+                    <div style="font-weight:bold; margin-bottom: 8px;">🔄 Server überlastet / Servers Overloaded / Υπερφόρτωση</div>
+                    <ul style="font-size: 0.85rem; padding-left: 20px; margin-bottom: 15px;">
+                        <li>🇩🇪 Alle Modelle sind überlastet. Neuer Versuch in <strong id="retry-timer">${secondsLeft}</strong>... (Versuch ${window.evalRetryCount} von 2)</li>
+                        <li>🇬🇧 All AI models are extremely busy. Retrying in <strong id="retry-timer2">${secondsLeft}</strong>s... (Attempt ${window.evalRetryCount} of 2)</li>
+                        <li>🇬🇷 Τα μοντέλα είναι απασχολημένα. Νέα προσπάθεια σε <strong id="retry-timer3">${secondsLeft}</strong>... (Προσπάθεια ${window.evalRetryCount} από 2)</li>
+                    </ul>
+                    <button id="btn-cancel-retry" style="background:#dc3545; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:0.8rem;">Vorgang abbrechen / Cancel</button>
+                </div>
+            `;
+            errorMsg.style.display = "block";
+            
+            const cancelBtn = document.getElementById('btn-cancel-retry');
+            
+            window.evalRetryTimeout = setInterval(() => {
+                secondsLeft--;
+                const t1 = document.getElementById('retry-timer');
+                const t2 = document.getElementById('retry-timer2');
+                const t3 = document.getElementById('retry-timer3');
+                if(t1) t1.textContent = secondsLeft;
+                if(t2) t2.textContent = secondsLeft;
+                if(t3) t3.textContent = secondsLeft;
+                
+                if (secondsLeft <= 0) {
+                    clearInterval(window.evalRetryTimeout);
+                    const bEv = document.getElementById('btn-evaluate');
+                    if(bEv) { bEv.disabled = true; bEv.style.opacity = "0.6"; }
+                    errorMsg.style.display = "none";
+                    requestEvaluation(cfg, data, true);
+                }
+            }, 1000);
+            
+            cancelBtn.onclick = () => {
+                clearInterval(window.evalRetryTimeout);
+                errorMsg.style.display = "none";
+                const bEv = document.getElementById('btn-evaluate');
+                if(bEv) { bEv.disabled = false; bEv.style.opacity = "1"; }
+                const lSp = document.getElementById('loading-spinner');
+                if(lSp) lSp.classList.add('hidden');
+            };
+            return; // Exit early, dont hit finally block yet so button stays disabled
+        }
+
+        // Standard Error processing
+        let displayError = e.message;
+        if (e.message === "OVERLOADED_SIGNAL") {
+             displayError = "Alle Server sind derzeit extrem überlastet. Automatische Versuche sind fehlgeschlagen.";
+        }
+        
         errorMsg.innerHTML = `
             <strong>Fehler bei der externen Google KI-Bewertung:</strong><br>
-            ${e.message}<br><br>
+            ${displayError}<br><br>
             <span style="font-size: 0.85rem; color: var(--text-main);">Mögliche Lösungen:</span>
             <ul style="margin-top: 5px; padding-left: 20px; font-size: 0.85rem; color: var(--text-main);">
                 <li>Verwenden Sie stattdessen den Button <strong>"Musterlösung anzeigen"</strong>, um fehlerfrei fortzufahren.</li>
@@ -454,19 +518,20 @@ async function requestEvaluation(cfg, data) {
         `;
         errorMsg.style.display = "block";
         
-        // Add event listener to the reset link
         document.getElementById('link-reset-key').onclick = (ev) => {
             ev.preventDefault();
             localStorage.removeItem("gemini_api_key");
             geminiApiKey = "";
             errorMsg.style.display = "none";
-            requestEvaluation(cfg, data); // this will trigger the modal
+            requestEvaluation(cfg, data); 
         };
     } finally {
-        const lSp = document.getElementById('loading-spinner');
-        if(lSp) lSp.classList.add('hidden');
-        const bEv = document.getElementById('btn-evaluate');
-        if(bEv) { bEv.disabled = false; bEv.style.opacity = "1"; }
+        if (!window.evalRetryTimeout || window.evalRetryCount >= 2 || errorMsg.style.display !== "none") {
+            const lSp = document.getElementById('loading-spinner');
+            if(lSp) lSp.classList.add('hidden');
+            const bEv = document.getElementById('btn-evaluate');
+            if(bEv) { bEv.disabled = false; bEv.style.opacity = "1"; }
+        }
     }
 }
 
